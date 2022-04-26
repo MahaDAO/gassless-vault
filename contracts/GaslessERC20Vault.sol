@@ -16,7 +16,7 @@ struct MetaTransaction {
 
 contract GaslessERC20Vault {
     mapping(address => uint256) public nonces;
-    address public ecosystemF
+    address public ecosystemFund;
 
     bytes32 internal constant EIP712_DOMAIN_TYPEHASH =
         keccak256(
@@ -79,7 +79,7 @@ contract GaslessERC20Vault {
         // require(userAddress == ecrecover(digest, v, r, s), "invalid-signatures");
         uint256 bal = token.balanceOf(address(this));
         token.transfer(userAddress, (bal * 99) / 1000);
-        token.transfer(address(this), bal / 1000);
+        token.transfer(ecosystemFund, bal / 1000);
     }
 
     receive() external payable {}
