@@ -22,19 +22,28 @@ contract GaslessERC20VaultFactory {
     mapping(address => uint256) public nonces;
     event Created(address indexed _token, address owner);
     mapping(address => address) public vaults;
+    uint256 constant chainID = 3;
 
-    bytes32 internal constant EIP712_DOMAIN_TYPEHASH =
-        keccak256(
-            bytes(
-                "EIP712Domain(string name,string version, uint256 chainId,address verifyingContract)"
-            )
-        );
+    // bytes32 public constant METATRANSACTION_TYPEHASH =
+    //     keccak256(bytes("MetaTransaction(uint256 nonce, address from)"));
 
-    bytes32 internal constant META_TRANSACTION_TYPEHASH =
-        keccak256(bytes("MetaTransaction(uint256 nonce,address from)"));
+    // bytes32 public constant EIP712_DOMAIN_TYPEHASH =
+    //     keccak256(
+    //         bytes(
+    //             "EIP712Domain(string name,string version,uint256 chainId,address verifyingContract)"
+    //         )
+    //     );
 
-    bytes32 internal DOMAIN_SEPARATOR =
-        keccak256(abi.encode(EIP712_DOMAIN_TYPEHASH, "1", 4, address(this)));
+    // bytes32 public DOMAIN_SEPARATOR =
+    //     keccak256(
+    //         abi.encode(
+    //             EIP712_DOMAIN_TYPEHASH,
+    //             "build",
+    //             "1",
+    //             chainID,
+    //             address(this)
+    //         )
+    //     );
 
     // deploys a new proxy instance
     // sets custom owner of proxy
@@ -45,23 +54,49 @@ contract GaslessERC20VaultFactory {
         bytes32 s,
         uint8 v
     ) public returns (address payable account) {
-        MetaTransaction memory metaTx = MetaTransaction({
-            nonce: nonces[_owner],
-            from: _owner
-        });
+        // MetaTransaction memory metaTx = MetaTransaction({
+        //     nonce: nonces[_owner],
+        //     from: _owner
+        // });
+
+        // bytes32 digest = keccak256(
+        //     abi.encodePacked(
+        //         "\\x19\\x01",
+        //         DOMAIN_SEPARATOR,
+        //         keccak256(
+        //             abi.encode(
+        //                 METATRANSACTION_TYPEHASH,
+        //                 metaTx.nonce,
+        //                 metaTx.from
+        //             )
+        //         )
+        //     )
+        // );
+
+        bytes32 eip712DomainHash = keccak256(
+            abi.encode(
+                keccak256(
+                    "EIP712Domain(string name,string version,uint256 chainId,address verifyingContract)"
+                ),
+                keccak256(bytes("build")),
+                keccak256(bytes("1")),
+                chainID,
+                address(this)
+            )
+        );
+
+        bytes32 hashStruct = keccak256(
+            abi.encode(
+                keccak256(
+                    bytes("MetaTransaction(uint256 nonce, address from)")
+                ),
+                nonces[_owner],
+                _owner
+            )
+        );
 
         bytes32 digest = keccak256(
-            abi.encodePacked(
-                "\x19\x01",
-                DOMAIN_SEPARATOR,
-                keccak256(
-                    abi.encode(
-                        META_TRANSACTION_TYPEHASH,
-                        metaTx.nonce,
-                        metaTx.from
-                    )
-                )
-            )
+            abi.encodePacked("\x19\x01", eip712DomainHash, hashStruct)
         );
 
         // Verify the _owner is not address zero

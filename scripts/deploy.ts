@@ -17,6 +17,8 @@ async function main() {
   const Greeter = await ethers.getContractFactory("GaslessERC20VaultFactory");
   const greeter = await Greeter.deploy();
 
+  // console.log('tx sent', greeter.w)
+
   await greeter.deployed();
 
   console.log("Contract deployed to:", greeter.address);
