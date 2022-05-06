@@ -5,7 +5,6 @@ import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 contract GaslessERC20Vault {
     address constant ecosystemFund = 0x9790C67E6062ce2965517E636377B954FA2d1afA;
-    address public vault;
     uint256 public fees;
 
     address public factory;
