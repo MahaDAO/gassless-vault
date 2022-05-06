@@ -23,7 +23,7 @@ contract GaslessERC20VaultFactory {
     mapping(address => uint256) public nonces;
     mapping(address => address) public vaults;
 
-    event Created(address indexed _token, address owner);
+    event Created(address indexed vault, address owner);
 
     // bytes32 public constant METATRANSACTION_TYPEHASH =
     //     keccak256(bytes("MetaTransaction(uint256 nonce, address from)"));
@@ -49,12 +49,11 @@ contract GaslessERC20VaultFactory {
     // deploys a new proxy instance
     // sets custom owner of proxy
     function build(
-        address token,
         address _owner,
         bytes32 r,
         bytes32 s,
         uint8 v
-    ) public returns (address payable account) {
+    ) public returns (address payable vault) {
         // MetaTransaction memory metaTx = MetaTransaction({
         //     nonce: nonces[_owner],
         //     from: _owner
@@ -78,11 +77,50 @@ contract GaslessERC20VaultFactory {
         // require(_owner == ecrecover(digest, v, r, s), "invalid-signatures");
 
         require(vaults[_owner] == address(0), "Vault already created");
+
         // Verify the _owner is not address zero
         require(_owner != address(0), "invalid-address-0");
 
-        account = payable(address(new GaslessERC20Vault()));
-        emit Created(token, _owner);
-        vaults[_owner] = account;
+        vault = payable(address(new GaslessERC20Vault(_owner, address(this))));
+        emit Created(vault, _owner);
+        vaults[_owner] = vault;
+    }
+
+    function transferToken(
+        address token,
+        address from,
+        address to,
+        uint256 amount,
+        bytes32 r,
+        bytes32 s,
+        uint8 v
+    ) external {
+        // MetaTransaction memory metaTx = MetaTransaction({
+        //     nonce: nonces[_owner],
+        //     from: _owner
+        // });
+
+        // bytes32 digest = keccak256(
+        //     abi.encodePacked(
+        //         "\\x19\\x01",
+        //         DOMAIN_SEPARATOR,
+        //         keccak256(
+        //             abi.encode(
+        //                 METATRANSACTION_TYPEHASH,
+        //                 metaTx.nonce,
+        //                 metaTx.from
+        //             )
+        //         )
+        //     )
+        // );
+
+        // Verify the _owner with the address recovered from the signatures
+        // require(_owner == ecrecover(digest, v, r, s), "invalid-signatures");
+
+        // Verify the _owner is not address zero
+        require(vaults[from] != address(0), "no vault for user");
+
+        GaslessERC20Vault vault = GaslessERC20Vault(vaults[from]);
+        vault.transferToken(token, amount, to);
     }
 }
