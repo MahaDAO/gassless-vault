@@ -142,4 +142,69 @@ contract GaslessERC20VaultFactory {
         GaslessERC20Vault vault = GaslessERC20Vault(vaults[from]);
         vault.transferToken(token, amount, to);
     }
+
+    function getABIEncoded(
+        address token,
+        address from,
+        address to,
+        uint256 amount
+    ) public view returns (bytes memory) {
+        return
+            abi.encode(
+                METATRANSACTION_TRANSFER_TYPEHASH,
+                token,
+                nonces[from],
+                from,
+                to,
+                amount
+            );
+    }
+
+    function getABIEncodedPacked(
+        address token,
+        address from,
+        address to,
+        uint256 amount
+    ) public view returns (bytes memory) {
+        return
+            abi.encodePacked(
+                "\\x19\\x01",
+                DOMAIN_SEPARATOR,
+                keccak256(
+                    abi.encode(
+                        METATRANSACTION_TRANSFER_TYPEHASH,
+                        token,
+                        nonces[from],
+                        from,
+                        to,
+                        amount
+                    )
+                )
+            );
+    }
+
+    function getDigest(
+        address token,
+        address from,
+        address to,
+        uint256 amount
+    ) public view returns (bytes32) {
+        return
+            keccak256(
+                abi.encodePacked(
+                    "\\x19\\x01",
+                    DOMAIN_SEPARATOR,
+                    keccak256(
+                        abi.encode(
+                            METATRANSACTION_TRANSFER_TYPEHASH,
+                            token,
+                            nonces[from],
+                            from,
+                            to,
+                            amount
+                        )
+                    )
+                )
+            );
+    }
 }
