@@ -5,7 +5,7 @@ import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeMath} from "@openzeppelin/contracts/utils/math/SafeMath.sol";
 import {IFactory} from "./interfaces/IFactory.sol";
 
-contract GaslessERC20Vault {
+contract GaslessVault {
     using SafeMath for uint256;
     IFactory public factory;
     address public owner;
@@ -64,6 +64,7 @@ contract GaslessERC20Vault {
 
     function callFunction(address target, bytes memory signature)
         external
+        payable
         onlyFactoryOrOwner
     {
         (bool success, bytes memory response) = target.call(signature);

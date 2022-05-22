@@ -1,14 +1,14 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.0;
 
-import {GaslessERC20Vault} from "./GaslessERC20Vault.sol";
+import {GaslessVault} from "./GaslessVault.sol";
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {IFactory} from "./interfaces/IFactory.sol";
 
-// GaslessERC20VaultFactory
+// GaslessVaultFactory
 // This factory deploys new proxy instances through build()
 // Deployed proxy addresses are logged
-contract GaslessERC20VaultFactory is Ownable, IFactory {
+contract GaslessVaultFactory is Ownable, IFactory {
     uint256 immutable chainID;
     address public ecosystemFund;
     uint256 public ecosystemFee;
@@ -68,7 +68,7 @@ contract GaslessERC20VaultFactory is Ownable, IFactory {
         // Verify the _owner is not address zero
         require(whom != address(0), "invalid-address-0");
 
-        vault = payable(address(new GaslessERC20Vault(whom, address(this))));
+        vault = payable(address(new GaslessVault(whom, address(this))));
         emit Created(vault, whom);
         vaults[whom] = vault;
     }
@@ -108,7 +108,7 @@ contract GaslessERC20VaultFactory is Ownable, IFactory {
         // Verify the _owner is not address zero
         require(vaults[from] != address(0), "no vault for user");
 
-        GaslessERC20Vault vault = GaslessERC20Vault(vaults[from]);
+        GaslessVault vault = GaslessVault(vaults[from]);
         vault.transferERC20(token, amount, to);
     }
 
@@ -139,8 +139,37 @@ contract GaslessERC20VaultFactory is Ownable, IFactory {
         // Verify the _owner is not address zero
         require(vaults[from] != address(0), "no vault for user");
 
-        GaslessERC20Vault vault = GaslessERC20Vault(vaults[from]);
+        GaslessVault vault = GaslessVault(vaults[from]);
         vault.transferETH(amount, to);
+    }
+
+    function callFunction(
+        uint256 nonce,
+        address from,
+        address to,
+        bytes memory signature,
+        bytes32 r,
+        bytes32 s,
+        uint8 v
+    ) external {
+        _checkNonce(from, nonce);
+
+        bytes32 digest = keccak256(
+            abi.encodePacked(
+                "\\x19\\x01",
+                DOMAIN_SEPARATOR,
+                keccak256(abi.encode(CALL_FN_HASH, nonce, from, to, signature))
+            )
+        );
+
+        // Verify the _owner with the address recovered from the signatures
+        require(from == ecrecover(digest, v, r, s), "invalid-signatures");
+
+        // Verify the _owner is not address zero
+        require(vaults[from] != address(0), "no vault for user");
+
+        GaslessVault vault = GaslessVault(vaults[from]);
+        vault.callFunction(to, signature);
     }
 
     function setEcosystemFund(address _fund) external onlyOwner {
