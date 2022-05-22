@@ -4,14 +4,16 @@ pragma solidity ^0.8.0;
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeMath} from "@openzeppelin/contracts/utils/math/SafeMath.sol";
 import {IFactory} from "./interfaces/IFactory.sol";
+import {IVault} from "./interfaces/IVault.sol";
 
-contract GaslessVault {
+contract GaslessVaultInstance is IVault {
     using SafeMath for uint256;
     IFactory public factory;
     address public owner;
     address public me;
 
-    constructor(address _owner, address _factory) {
+    function initialize(address _owner, address _factory) external override {
+        require(me == address(0), "already initialized");
         owner = _owner;
         factory = IFactory(_factory);
         me = address(this);
