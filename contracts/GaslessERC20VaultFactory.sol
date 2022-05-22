@@ -2,106 +2,79 @@
 pragma solidity ^0.8.0;
 
 import {GaslessERC20Vault} from "./GaslessERC20Vault.sol";
+import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
+import {IFactory} from "./interfaces/IFactory.sol";
 
 // GaslessERC20VaultFactory
 // This factory deploys new proxy instances through build()
 // Deployed proxy addresses are logged
-contract GaslessERC20VaultFactory {
-    uint256 constant chainID = 56;
-
-    struct EIP712Domain {
-        string name;
-        string version;
-        uint256 chainId;
-        address verifyingContract;
-    }
-
-    struct MetaTransactionBuild {
-        uint256 nonce;
-        address from;
-    }
-
-    struct MetaTransactionTransfer {
-        uint256 nonce;
-        address from;
-        address to;
-        uint256 amount;
-    }
+contract GaslessERC20VaultFactory is Ownable, IFactory {
+    uint256 immutable chainID;
+    address public ecosystemFund;
+    uint256 public ecosystemFee;
 
     mapping(address => uint256) public nonces;
     mapping(address => address) public vaults;
 
-    event Created(address indexed vault, address owner);
+    // various hashes
+    bytes32 public immutable BUILD_HASH = keccak256(bytes("BUILD_HASH"));
+    bytes32 public immutable ETH_TRANSFER_HASH =
+        keccak256(bytes("ETH_TRANSFER_HASH"));
+    bytes32 public immutable ERC20_TRANSFER_HASH =
+        keccak256(bytes("ERC20_TRANSFER_HASH"));
+    bytes32 public immutable CALL_FN_HASH = keccak256(bytes("CALL_FN_HASH"));
+    bytes32 public immutable DOMAIN_SEPARATOR;
 
-    bytes32 public constant METATRANSACTION_BUILD_TYPEHASH =
-        keccak256(bytes("MetaTransactionBuild(uint256 nonce, address from)"));
+    constructor() {
+        chainID = block.chainid;
 
-    bytes32 public constant METATRANSACTION_TRANSFER_TYPEHASH =
-        keccak256(
-            bytes(
-                "MetaTransactionTransfer(uint256 nonce, address from, address to, uint256 amount)"
-            )
-        );
-
-    bytes32 public constant EIP712_DOMAIN_TYPEHASH =
-        keccak256(
+        bytes32 typehash = keccak256(
             bytes(
                 "EIP712Domain(string name,string version,uint256 chainId,address verifyingContract)"
             )
         );
 
-    bytes32 public DOMAIN_SEPARATOR =
-        keccak256(
-            abi.encode(
-                EIP712_DOMAIN_TYPEHASH,
-                "build",
-                "1",
-                chainID,
-                address(this)
-            )
+        DOMAIN_SEPARATOR = keccak256(
+            abi.encode(typehash, "build", "1", block.chainid, address(this))
         );
+
+        ecosystemFund = msg.sender;
+    }
 
     // deploys a new proxy instance
     // sets custom owner of proxy
     function build(
-        address _owner,
+        uint256 nonce,
+        address whom,
         bytes32 r,
         bytes32 s,
         uint8 v
     ) public returns (address payable vault) {
-        MetaTransactionBuild memory metaTx = MetaTransactionBuild({
-            nonce: nonces[_owner],
-            from: _owner
-        });
-
         bytes32 digest = keccak256(
             abi.encodePacked(
                 "\\x19\\x01",
                 DOMAIN_SEPARATOR,
-                keccak256(
-                    abi.encode(
-                        METATRANSACTION_BUILD_TYPEHASH,
-                        metaTx.nonce,
-                        metaTx.from
-                    )
-                )
+                keccak256(abi.encode(BUILD_HASH, nonce, whom))
             )
         );
 
-        // Verify the _owner with the address recovered from the signatures
-        // require(_owner == ecrecover(digest, v, r, s), "invalid-signatures");
+        _checkNonce(whom, nonce);
 
-        require(vaults[_owner] == address(0), "Vault already created");
+        // Verify the _owner with the address recovered from the signatures
+        require(whom == ecrecover(digest, v, r, s), "invalid-signatures");
+
+        require(vaults[whom] == address(0), "Vault already created");
 
         // Verify the _owner is not address zero
-        require(_owner != address(0), "invalid-address-0");
+        require(whom != address(0), "invalid-address-0");
 
-        vault = payable(address(new GaslessERC20Vault(_owner, address(this))));
-        emit Created(vault, _owner);
-        vaults[_owner] = vault;
+        vault = payable(address(new GaslessERC20Vault(whom, address(this))));
+        emit Created(vault, whom);
+        vaults[whom] = vault;
     }
 
     function transferToken(
+        uint256 nonce,
         address token,
         address from,
         address to,
@@ -110,12 +83,7 @@ contract GaslessERC20VaultFactory {
         bytes32 s,
         uint8 v
     ) external {
-        MetaTransactionTransfer memory metaTx = MetaTransactionTransfer({
-            nonce: nonces[from],
-            from: from,
-            to: to,
-            amount: amount
-        });
+        _checkNonce(from, nonce);
 
         bytes32 digest = keccak256(
             abi.encodePacked(
@@ -123,88 +91,78 @@ contract GaslessERC20VaultFactory {
                 DOMAIN_SEPARATOR,
                 keccak256(
                     abi.encode(
-                        METATRANSACTION_TRANSFER_TYPEHASH,
-                        metaTx.nonce,
-                        metaTx.from,
-                        metaTx.to,
-                        metaTx.amount
+                        ERC20_TRANSFER_HASH,
+                        nonce,
+                        token,
+                        from,
+                        to,
+                        amount
                     )
                 )
             )
         );
 
         // Verify the _owner with the address recovered from the signatures
-        // require(_owner == ecrecover(digest, v, r, s), "invalid-signatures");
+        require(from == ecrecover(digest, v, r, s), "invalid-signatures");
 
         // Verify the _owner is not address zero
         require(vaults[from] != address(0), "no vault for user");
 
         GaslessERC20Vault vault = GaslessERC20Vault(vaults[from]);
-        vault.transferToken(token, amount, to);
+        vault.transferERC20(token, amount, to);
     }
 
-    function getABIEncoded(
-        address token,
+    function transferETH(
+        uint256 nonce,
         address from,
         address to,
-        uint256 amount
-    ) public view returns (bytes memory) {
-        return
-            abi.encode(
-                METATRANSACTION_TRANSFER_TYPEHASH,
-                token,
-                nonces[from],
-                from,
-                to,
-                amount
-            );
-    }
+        uint256 amount,
+        bytes32 r,
+        bytes32 s,
+        uint8 v
+    ) external {
+        _checkNonce(from, nonce);
 
-    function getABIEncodedPacked(
-        address token,
-        address from,
-        address to,
-        uint256 amount
-    ) public view returns (bytes memory) {
-        return
+        bytes32 digest = keccak256(
             abi.encodePacked(
                 "\\x19\\x01",
                 DOMAIN_SEPARATOR,
                 keccak256(
-                    abi.encode(
-                        METATRANSACTION_TRANSFER_TYPEHASH,
-                        token,
-                        nonces[from],
-                        from,
-                        to,
-                        amount
-                    )
+                    abi.encode(ETH_TRANSFER_HASH, nonce, from, to, amount)
                 )
-            );
+            )
+        );
+
+        // Verify the _owner with the address recovered from the signatures
+        require(from == ecrecover(digest, v, r, s), "invalid-signatures");
+
+        // Verify the _owner is not address zero
+        require(vaults[from] != address(0), "no vault for user");
+
+        GaslessERC20Vault vault = GaslessERC20Vault(vaults[from]);
+        vault.transferETH(amount, to);
     }
 
-    function getDigest(
-        address token,
-        address from,
-        address to,
-        uint256 amount
-    ) public view returns (bytes32) {
-        return
-            keccak256(
-                abi.encodePacked(
-                    "\\x19\\x01",
-                    DOMAIN_SEPARATOR,
-                    keccak256(
-                        abi.encode(
-                            METATRANSACTION_TRANSFER_TYPEHASH,
-                            token,
-                            nonces[from],
-                            from,
-                            to,
-                            amount
-                        )
-                    )
-                )
-            );
+    function setEcosystemFund(address _fund) external onlyOwner {
+        ecosystemFund = _fund;
+        emit EcosystemFundChanged(msg.sender, _fund);
+    }
+
+    function setEcosystemFee(uint256 _fee) external onlyOwner {
+        ecosystemFee = _fee;
+        emit EcosystemFeeChanged(msg.sender, _fee);
+    }
+
+    function getEcosystemFund() external view override returns (address) {
+        return ecosystemFund;
+    }
+
+    function getEcosystemFee() external view override returns (uint256) {
+        return ecosystemFee;
+    }
+
+    function _checkNonce(address who, uint256 nonce) internal {
+        require(nonces[who] < nonce, "nonce too old");
+        nonces[who] = nonce;
     }
 }

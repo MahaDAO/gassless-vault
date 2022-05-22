@@ -2,29 +2,34 @@
 pragma solidity ^0.8.0;
 
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {SafeMath} from "@openzeppelin/contracts/utils/math/SafeMath.sol";
+import {IFactory} from "./interfaces/IFactory.sol";
 
 contract GaslessERC20Vault {
-    address constant ecosystemFund = 0x9790C67E6062ce2965517E636377B954FA2d1afA;
-    uint256 public fees;
-
-    address public factory;
+    using SafeMath for uint256;
+    IFactory public factory;
     address public owner;
+    address public me;
 
     constructor(address _owner, address _factory) {
         owner = _owner;
-        factory = _factory;
+        factory = IFactory(_factory);
+        me = address(this);
     }
 
-    function transferToken(
+    modifier onlyFactoryOrOwner() {
+        require(
+            msg.sender == owner || msg.sender == address(factory),
+            "not owner or factory"
+        );
+        _;
+    }
+
+    function transferERC20(
         address _token,
         uint256 amount,
         address recipient
-    ) public payable {
-        require(
-            msg.sender == owner || msg.sender == factory,
-            "not owner or factory"
-        );
-
+    ) public onlyFactoryOrOwner {
         IERC20 token = IERC20(_token);
 
         // Verify the _owner is not address zero
@@ -34,10 +39,34 @@ contract GaslessERC20Vault {
         );
         require(amount > 0, "invalid amount");
 
-        fees = amount / 1000;
+        uint256 fees = amount.div(factory.getEcosystemFee());
 
         // this contract gives fees to ecosystem
-        token.transfer(recipient, amount - fees);
-        token.transfer(ecosystemFund, fees);
+        token.transfer(recipient, amount.sub(fees));
+        token.transfer(factory.getEcosystemFund(), fees);
+    }
+
+    function transferETH(uint256 amount, address recipient)
+        public
+        payable
+        onlyFactoryOrOwner
+    {
+        // Verify the _owner is not address zero
+        require(me.balance >= amount, "insufficient balance");
+        require(amount > 0, "invalid amount");
+
+        uint256 fees = amount.div(factory.getEcosystemFee());
+
+        // send fees to the ecosystem fund
+        payable(recipient).transfer(amount.sub(fees));
+        payable(factory.getEcosystemFund()).transfer(fees);
+    }
+
+    function callFunction(address target, bytes memory signature)
+        external
+        onlyFactoryOrOwner
+    {
+        (bool success, bytes memory response) = target.call(signature);
+        require(success, string(response));
     }
 }
