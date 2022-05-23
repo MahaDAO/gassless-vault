@@ -11,7 +11,7 @@ import {IVault} from "./interfaces/IVault.sol";
 // This factory deploys new proxy instances through build()
 // Deployed proxy addresses are logged
 contract GaslessVaultFactory is Ownable, IFactory {
-    uint256 immutable chainID;
+    uint256 private immutable chainID;
     address private ecosystemFund;
     uint256 private ecosystemFee;
     address private vaultImplementation;
@@ -42,6 +42,8 @@ contract GaslessVaultFactory is Ownable, IFactory {
         );
 
         ecosystemFund = msg.sender;
+
+        vaultImplementation = address(new GaslessVaultInstance());
     }
 
     // deploys a new proxy instance
@@ -80,30 +82,18 @@ contract GaslessVaultFactory is Ownable, IFactory {
         address from,
         address to,
         uint256 amount,
-        bytes32 r,
-        bytes32 s,
-        uint8 v
+        bytes memory sig
     ) external {
         _checkNonce(from, nonce);
 
-        bytes32 digest = keccak256(
-            abi.encodePacked(
-                "\\x19\\x01",
-                DOMAIN_SEPARATOR,
-                keccak256(
-                    abi.encode(
-                        ERC20_TRANSFER_HASH,
-                        nonce,
-                        token,
-                        from,
-                        to,
-                        amount
-                    )
-                )
+        bytes32 digest = prefixed(
+            keccak256(
+                abi.encode(ERC20_TRANSFER_HASH, nonce, token, from, to, amount)
             )
         );
 
         // Verify the _owner with the address recovered from the signatures
+        (uint8 v, bytes32 r, bytes32 s) = splitSignature(sig);
         require(from == ecrecover(digest, v, r, s), "invalid-signatures");
 
         // Verify the _owner is not address zero
@@ -118,23 +108,16 @@ contract GaslessVaultFactory is Ownable, IFactory {
         address from,
         address to,
         uint256 amount,
-        bytes32 r,
-        bytes32 s,
-        uint8 v
+        bytes memory sig
     ) external {
         _checkNonce(from, nonce);
 
-        bytes32 digest = keccak256(
-            abi.encodePacked(
-                "\\x19\\x01",
-                DOMAIN_SEPARATOR,
-                keccak256(
-                    abi.encode(ETH_TRANSFER_HASH, nonce, from, to, amount)
-                )
-            )
+        bytes32 digest = prefixed(
+            keccak256(abi.encode(ETH_TRANSFER_HASH, nonce, from, to, amount))
         );
 
         // Verify the _owner with the address recovered from the signatures
+        (uint8 v, bytes32 r, bytes32 s) = splitSignature(sig);
         require(from == ecrecover(digest, v, r, s), "invalid-signatures");
 
         // Verify the _owner is not address zero
@@ -148,25 +131,24 @@ contract GaslessVaultFactory is Ownable, IFactory {
         uint256 nonce,
         address from,
         address to,
-        bytes memory signature,
-        bytes32 r,
-        bytes32 s,
-        uint8 v
+        bytes memory fnSignature,
+        bytes memory sig
     ) external {
         _checkNonce(from, nonce);
 
         bytes32 digest = prefixed(
-            keccak256(abi.encode(CALL_FN_HASH, nonce, from, to, signature))
+            keccak256(abi.encode(CALL_FN_HASH, nonce, from, to, fnSignature))
         );
 
         // Verify the _owner with the address recovered from the signatures
+        (uint8 v, bytes32 r, bytes32 s) = splitSignature(sig);
         require(from == ecrecover(digest, v, r, s), "invalid-signatures");
 
         // Verify the _owner is not address zero
         require(vaults[from] != address(0), "no vault for user");
 
         GaslessVaultInstance vault = GaslessVaultInstance(vaults[from]);
-        vault.callFunction(to, signature);
+        vault.callFunction(to, fnSignature);
     }
 
     function setEcosystemFund(address _fund) external onlyOwner {
