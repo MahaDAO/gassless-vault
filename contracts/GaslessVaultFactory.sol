@@ -86,20 +86,9 @@ contract GaslessVaultFactory is Ownable, IFactory {
     ) external {
         _checkNonce(from, nonce);
 
-        bytes32 digest = keccak256(
-            abi.encodePacked(
-                "\\x19\\x01",
-                DOMAIN_SEPARATOR,
-                keccak256(
-                    abi.encode(
-                        ERC20_TRANSFER_HASH,
-                        nonce,
-                        token,
-                        from,
-                        to,
-                        amount
-                    )
-                )
+        bytes32 digest = prefixed(
+            keccak256(
+                abi.encode(ERC20_TRANSFER_HASH, nonce, token, from, to, amount)
             )
         );
 
@@ -123,14 +112,8 @@ contract GaslessVaultFactory is Ownable, IFactory {
     ) external {
         _checkNonce(from, nonce);
 
-        bytes32 digest = keccak256(
-            abi.encodePacked(
-                "\\x19\\x01",
-                DOMAIN_SEPARATOR,
-                keccak256(
-                    abi.encode(ETH_TRANSFER_HASH, nonce, from, to, amount)
-                )
-            )
+        bytes32 digest = prefixed(
+            keccak256(abi.encode(ETH_TRANSFER_HASH, nonce, from, to, amount))
         );
 
         // Verify the _owner with the address recovered from the signatures
