@@ -6,7 +6,7 @@ async function main() {
 
   const factory = await ethers.getContractAt(
     "GaslessVaultFactory",
-    "0x4B8F11F8fA64CD7c2d7B7e96BE214eD9ddf7BFbC"
+    "0x32fc36C43Ca917349c563F65aeB76cE8B45d9002"
   );
 
   const BUILD_HASH = await factory.BUILD_HASH();

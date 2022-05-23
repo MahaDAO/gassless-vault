@@ -1,19 +1,19 @@
 import hre, { ethers } from "hardhat";
 
 async function main() {
-  const Factory = await ethers.getContractFactory("GaslessVaultFactory");
-  const instance = await Factory.deploy();
+  // const Factory = await ethers.getContractFactory("GaslessVaultFactory");
+  // const instance = await Factory.deploy();
 
-  await instance.deployed();
+  // await instance.deployed();
 
-  console.log("Contract deployed to:", instance.address);
+  // console.log("Contract deployed to:", instance.address);
 
   await hre.run("verify:verify", {
-    address: instance.address,
-    // constructorArguments: [
-    //   "0xca41f33c4415734993ffd22be9d2b7baf570d3a7",
-    //   "0x4b8f11f8fa64cd7c2d7b7e96be214ed9ddf7bfbc",
-    // ],
+    address: "0x8180dc9AF65F821cc4C2bea21B6C85F8eF2d50AE",
+    constructorArguments: [
+      // "0xca41f33c4415734993ffd22be9d2b7baf570d3a7",
+      "0x32fc36C43Ca917349c563F65aeB76cE8B45d9002",
+    ],
   });
 }
 
