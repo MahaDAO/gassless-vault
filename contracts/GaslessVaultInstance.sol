@@ -5,10 +5,12 @@ import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeMath} from "@openzeppelin/contracts/utils/math/SafeMath.sol";
 import {IFactory} from "./interfaces/IFactory.sol";
 import {IVault} from "./interfaces/IVault.sol";
+import {ITokenFees} from "./interfaces/ITokenFees";
 
 contract GaslessVaultInstance is IVault {
     using SafeMath for uint256;
     IFactory public factory;
+    ITokenFees public tokenFees;
     address public owner;
     address public me;
 
@@ -41,7 +43,8 @@ contract GaslessVaultInstance is IVault {
         );
         require(amount > 0, "invalid amount");
 
-        uint256 fees = amount.div(factory.getEcosystemFee());
+        // uint256 fees = amount.div(factory.getEcosystemFee());
+        uint256 fees = amount.div(tokenFees.getTokenFee(token));
 
         // this contract gives fees to ecosystem
         token.transfer(recipient, amount.sub(fees));
